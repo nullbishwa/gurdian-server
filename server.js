@@ -49,6 +49,17 @@ io.on("connection", (socket) => {
     });
   });
 
+  // 📸 Forward camera frames
+  socket.on("camera-frame", (base64Image) => {
+    console.log(`📷 Camera frame from ${socket.id}, size: ${base64Image.length}`);
+    listeners.forEach((id) => {
+      io.to(id).emit("camera-frame", {
+        id: socket.id,
+        image: base64Image, // base64 encoded JPEG/PNG string
+      });
+    });
+  });
+
   // Handle disconnect
   socket.on("disconnect", () => {
     devices.delete(socket.id);
