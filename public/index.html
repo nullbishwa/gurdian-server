@@ -167,9 +167,9 @@
 
     // === CAMERA ===
     const cameraImg = document.getElementById("cameraFeed");
-    socket.on("camera-frame", (data) => {
-      if (data && data.image) {
-        cameraImg.src = "data:image/jpeg;base64," + data.image;
+    socket.on("camera-frame", (base64Image) => {
+      if (base64Image) {
+        cameraImg.src = "data:image/jpeg;base64," + base64Image;
       }
     });
   </script>
