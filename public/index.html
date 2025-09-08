@@ -32,6 +32,25 @@
       border: 1px solid #ddd;
       border-radius: 8px;
     }
+    #startAudio {
+      display: block;
+      margin: 10px auto;
+      padding: 10px 20px;
+      background: #007bff;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 16px;
+    }
+    #startAudio:hover {
+      background: #0056b3;
+    }
+    #audioStatus {
+      text-align: center;
+      margin-top: 5px;
+      font-style: italic;
+    }
   </style>
 </head>
 <body>
@@ -43,7 +62,8 @@
   <div id="map"></div>
 
   <h2>Live Audio</h2>
-  <p>Audio will play automatically when available.</p>
+  <button id="startAudio">▶ Start Listening</button>
+  <p id="audioStatus">Click the button to start audio.</p>
 
   <script>
     // Connect to server
@@ -82,9 +102,18 @@
     });
 
     // === AUDIO ===
-    let audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    let audioContext = null;
     let audioQueue = [];
     let isPlaying = false;
+
+    document.getElementById("startAudio").addEventListener("click", () => {
+      if (!audioContext) {
+        audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        document.getElementById("audioStatus").innerText = "🎧 Listening...";
+        console.log("AudioContext started");
+      }
+      if (!isPlaying) playNextChunk();
+    });
 
     function playNextChunk() {
       if (!audioQueue.length || !audioContext) {
@@ -106,7 +135,7 @@
     }
 
     socket.on("audio-chunk", (base64Chunk) => {
-      if (!audioContext) return;
+      if (!audioContext) return; // only after Start button
 
       // Base64 → PCM16 → Float32
       const byteString = atob(base64Chunk.replace(/\n/g,''));
