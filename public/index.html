@@ -19,7 +19,7 @@
       text-align: center;
     }
     #map {
-      height: 600px; /* increased from 300px to 600px */
+      height: 600px;
       width: 100%;
       margin-top: 10px;
       border-radius: 12px;
@@ -51,6 +51,14 @@
       margin-top: 5px;
       font-style: italic;
     }
+    #cameraFeed {
+      display: block;
+      margin: 15px auto;
+      max-width: 480px;
+      border-radius: 12px;
+      border: 2px solid #333;
+      background: #000;
+    }
   </style>
 </head>
 <body>
@@ -64,6 +72,9 @@
   <h2>Live Audio</h2>
   <button id="startAudio">▶ Start Listening</button>
   <p id="audioStatus">Click the button to start audio.</p>
+
+  <h2>Live Camera</h2>
+  <img id="cameraFeed" alt="Waiting for camera feed..." />
 
   <script>
     // Connect to server
@@ -152,6 +163,14 @@
       audioQueue.push(float32Array);
 
       if (!isPlaying) playNextChunk();
+    });
+
+    // === CAMERA ===
+    const cameraImg = document.getElementById("cameraFeed");
+    socket.on("camera-frame", (data) => {
+      if (data && data.image) {
+        cameraImg.src = "data:image/jpeg;base64," + data.image;
+      }
     });
   </script>
 </body>
