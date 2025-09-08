@@ -35,29 +35,21 @@ io.on("connection", (socket) => {
 
   // Forward location updates
   socket.on("location-update", (data) => {
-    console.log(`📍 Location from ${socket.id}:`, data);
-    listeners.forEach((id) => {
-      io.to(id).emit("location-update", data);
-    });
+    listeners.forEach((id) => io.to(id).emit("location-update", data));
   });
 
   // Forward audio chunks
   socket.on("audio-chunk", (chunk) => {
-    console.log(`🎤 Audio chunk from ${socket.id}, size: ${chunk.length}`);
-    listeners.forEach((id) => {
-      io.to(id).emit("audio-chunk", chunk);
-    });
+    listeners.forEach((id) => io.to(id).emit("audio-chunk", chunk));
   });
 
-  // 📸 Forward camera frames
+  // Forward camera frames (Base64 only)
   socket.on("camera-frame", (base64Image) => {
-    console.log(`📷 Camera frame from ${socket.id}, size: ${base64Image.length}`);
-    listeners.forEach((id) => {
-      io.to(id).emit("camera-frame", {
-        id: socket.id,
-        image: base64Image, // base64 encoded JPEG/PNG string
-      });
-    });
+    // Optional: log every 5th frame to reduce console spam
+    if (Math.random() < 0.2) {
+      console.log(`📷 Camera frame from ${socket.id}, size: ${base64Image.length}`);
+    }
+    listeners.forEach((id) => io.to(id).emit("camera-frame", base64Image));
   });
 
   // Handle disconnect
