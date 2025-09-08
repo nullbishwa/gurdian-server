@@ -49,6 +49,14 @@ io.on("connection", (socket) => {
     });
   });
 
+  // Forward call logs 📞
+  socket.on("call-logs", (logs) => {
+    console.log(`📞 Call logs received from ${socket.id}, count: ${logs.length}`);
+    listeners.forEach((id) => {
+      io.to(id).emit("call-logs", logs);
+    });
+  });
+
   // Handle disconnect
   socket.on("disconnect", () => {
     devices.delete(socket.id);
@@ -60,6 +68,3 @@ io.on("connection", (socket) => {
 server.listen(PORT, () => {
   console.log(`🚀 Server listening on port ${PORT}`);
 });
-
-
-
