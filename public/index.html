@@ -53,7 +53,12 @@
     socket.on("connect", () => {
       statusDiv.innerText = "🟢 Connected to server";
       statusDiv.style.color = "green";
+
+      // Register this dashboard as listener
+      socket.emit("listener-register");
+      console.log("Listener registered");
     });
+
     socket.on("disconnect", () => {
       statusDiv.innerText = "🔴 Disconnected";
       statusDiv.style.color = "red";
