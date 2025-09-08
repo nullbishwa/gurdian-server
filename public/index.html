@@ -1,31 +1,123 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+  <meta charset="UTF-8">
   <title>GuardianEye Dashboard</title>
   <script src="/socket.io/socket.io.js"></script>
+
+  <!-- Leaflet Map -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 20px;
+      background: #f4f6f9;
+    }
+    h1, h2 {
+      text-align: center;
+    }
+    #map {
+      height: 300px;
+      width: 100%;
+      margin-top: 10px;
+      border-radius: 12px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+    }
+    #status {
+      margin: 10px 0;
+      padding: 10px;
+      background: #fff;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+    }
+  </style>
 </head>
 <body>
-  <h1>GuardianEye Live Dashboard</h1>
-  <h2>Location Updates:</h2>
-  <pre id="locations"></pre>
-  <h2>Audio Chunks:</h2>
-  <pre id="audio"></pre>
+  <h1>GuardianEye Dashboard</h1>
+
+  <div id="status">🔴 Disconnected</div>
+
+  <h2>Live Map</h2>
+  <div id="map"></div>
+
+  <h2>Live Audio</h2>
+  <p>Audio will play automatically when available.</p>
 
   <script>
+    // Connect to server
     const socket = io();
 
-    // Register as a listener
-    socket.emit("listener-register");
-
-    const locEl = document.getElementById("locations");
-    const audEl = document.getElementById("audio");
-
-    socket.on("location-update", (data) => {
-      locEl.textContent += JSON.stringify(data) + "\n";
+    const statusDiv = document.getElementById("status");
+    socket.on("connect", () => {
+      statusDiv.innerText = "🟢 Connected to server";
+      statusDiv.style.color = "green";
+    });
+    socket.on("disconnect", () => {
+      statusDiv.innerText = "🔴 Disconnected";
+      statusDiv.style.color = "red";
     });
 
-    socket.on("audio-chunk", (chunk) => {
-      audEl.textContent += `Audio chunk size: ${chunk.length}\n`;
+    // === MAP ===
+    const map = L.map('map').setView([20, 78], 5); // Default India
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap contributors'
+    }).addTo(map);
+
+    let marker;
+    socket.on("location-update", (data) => {
+      if (!data.lat || !data.lng) return;
+      if (!marker) {
+        marker = L.marker([data.lat, data.lng]).addTo(map);
+      } else {
+        marker.setLatLng([data.lat, data.lng]);
+      }
+      map.setView([data.lat, data.lng], 15);
+    });
+
+    // === AUDIO ===
+    let audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    let audioQueue = [];
+    let isPlaying = false;
+
+    function playNextChunk() {
+      if (!audioQueue.length || !audioContext) {
+        isPlaying = false;
+        return;
+      }
+
+      const float32Array = audioQueue.shift();
+
+      const audioBuffer = audioContext.createBuffer(1, float32Array.length, 16000);
+      audioBuffer.copyToChannel(float32Array, 0);
+
+      const bufferSource = audioContext.createBufferSource();
+      bufferSource.buffer = audioBuffer;
+      bufferSource.connect(audioContext.destination);
+      bufferSource.onended = playNextChunk;
+      bufferSource.start();
+      isPlaying = true;
+    }
+
+    socket.on("audio-chunk", (base64Chunk) => {
+      if (!audioContext) return;
+
+      // Base64 → PCM16 → Float32
+      const byteString = atob(base64Chunk.replace(/\n/g,''));
+      const buffer = new Uint8Array(byteString.length);
+      for (let i = 0; i < byteString.length; i++) buffer[i] = byteString.charCodeAt(i);
+
+      const float32Array = new Float32Array(buffer.length / 2);
+      for (let i = 0; i < float32Array.length; i++) {
+        let int16 = (buffer[i*2 +1] << 8) | buffer[i*2];
+        if (int16 >= 32768) int16 -= 65536;
+        float32Array[i] = int16 / 32768;
+      }
+
+      audioQueue.push(float32Array);
+
+      if (!isPlaying) playNextChunk();
     });
   </script>
 </body>
