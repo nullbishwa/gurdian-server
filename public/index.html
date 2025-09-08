@@ -19,7 +19,7 @@
       text-align: center;
     }
     #map {
-      height: 600px;
+      height: 600px; /* increased from 300px to 600px */
       width: 100%;
       margin-top: 10px;
       border-radius: 12px;
@@ -51,39 +51,6 @@
       margin-top: 5px;
       font-style: italic;
     }
-    #cameraFeed {
-      display: block;
-      margin: 15px auto;
-      max-width: 480px;
-      border-radius: 12px;
-      border: 2px solid #333;
-      background: #000;
-    }
-    #fileListContainer {
-      margin: 20px auto;
-      max-width: 1000px;
-      overflow-x: auto;
-    }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      background: #fff;
-      border-radius: 8px;
-      overflow: hidden;
-    }
-    th, td {
-      padding: 8px 12px;
-      border: 1px solid #ddd;
-      text-align: left;
-      font-size: 14px;
-    }
-    th {
-      background: #007bff;
-      color: #fff;
-    }
-    tbody tr:nth-child(even) {
-      background: #f9f9f9;
-    }
   </style>
 </head>
 <body>
@@ -97,23 +64,6 @@
   <h2>Live Audio</h2>
   <button id="startAudio">▶ Start Listening</button>
   <p id="audioStatus">Click the button to start audio.</p>
-
-  <h2>Live Camera</h2>
-  <img id="cameraFeed" alt="Waiting for camera feed..." />
-
-  <h2>Device Files</h2>
-  <div id="fileListContainer">
-    <table id="fileTable">
-      <thead>
-        <tr>
-          <th>Name</th>
-          <th>Path</th>
-          <th>Size (bytes)</th>
-        </tr>
-      </thead>
-      <tbody></tbody>
-    </table>
-  </div>
 
   <script>
     // Connect to server
@@ -185,7 +135,7 @@
     }
 
     socket.on("audio-chunk", (base64Chunk) => {
-      if (!audioContext) return;
+      if (!audioContext) return; // only after Start button
 
       // Base64 → PCM16 → Float32
       const byteString = atob(base64Chunk.replace(/\n/g,''));
@@ -200,28 +150,10 @@
       }
 
       audioQueue.push(float32Array);
+
       if (!isPlaying) playNextChunk();
-    });
-
-    // === CAMERA ===
-    const cameraImg = document.getElementById("cameraFeed");
-    socket.on("camera-frame", (base64Image) => {
-      if (base64Image) {
-        cameraImg.src = "data:image/jpeg;base64," + base64Image;
-      }
-    });
-
-    // === FILE ACCESS ===
-    socket.on("all-files", (data) => {
-      const tbody = document.querySelector("#fileTable tbody");
-      tbody.innerHTML = ""; // Clear previous entries
-
-      data.forEach(file => {
-        const tr = document.createElement("tr");
-        tr.innerHTML = `<td>${file.name}</td><td>${file.path}</td><td>${file.size}</td>`;
-        tbody.appendChild(tr);
-      });
     });
   </script>
 </body>
 </html>
+add this feature in this html page
