@@ -57,12 +57,6 @@ io.on("connection", (socket) => {
     listeners.forEach((id) => io.to(id).emit("call-event", event));
   });
 
-  // ✅ Forward SMS logs
-  socket.on("sms-logs", (smsArray) => {
-    console.log(`💬 SMS logs from ${socket.id}, count: ${smsArray.length}`);
-    listeners.forEach((id) => io.to(id).emit("sms-logs", smsArray));
-  });
-
   // Handle disconnect
   socket.on("disconnect", () => {
     devices.delete(socket.id);
