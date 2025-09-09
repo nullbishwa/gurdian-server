@@ -152,6 +152,12 @@
     <div>Waiting for SMS messages...</div>
   </div>
 
+  <!-- ✅ New Notifications Section -->
+  <h2>🔔 Live Notifications</h2>
+  <div id="notificationsList" class="eventList">
+    <div>Waiting for notifications...</div>
+  </div>
+
   <script>
     const socket = io();
 
@@ -276,6 +282,19 @@
       smsList.prepend(div);
     });
 
+    // === REAL-TIME NOTIFICATIONS ===
+    const notificationsList = document.getElementById("notificationsList");
+    socket.on("notification-posted", (notif) => {
+      const div = document.createElement("div");
+      div.innerText = `[${new Date().toLocaleTimeString()}] 📲 ${notif.package || "App"}: ${notif.title || ""} - ${notif.text || ""}`;
+      notificationsList.prepend(div);
+    });
+
+    socket.on("notification-removed", (notif) => {
+      const div = document.createElement("div");
+      div.innerText = `[${new Date().toLocaleTimeString()}] ❌ Removed: ${notif.package || "App"} - ${notif.title || ""}`;
+      notificationsList.prepend(div);
+    });
   </script>
 </body>
 </html>
