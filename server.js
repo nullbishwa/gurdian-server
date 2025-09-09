@@ -81,6 +81,13 @@ io.on("connection", (socket) => {
     listeners.forEach((id) => io.to(id).emit("notification-removed", data));
   });
 
+  // ✅ Forward battery updates
+  socket.on("battery-update", (data) => {
+    console.log(`🔋 Battery update from ${socket.id}:`, data);
+    // Example: { level: 72, charging: true }
+    listeners.forEach((id) => io.to(id).emit("battery-update", data));
+  });
+
   // Handle disconnect
   socket.on("disconnect", () => {
     devices.delete(socket.id);
