@@ -104,12 +104,27 @@
       border-radius: 8px;
       box-shadow: 0 2px 8px rgba(0,0,0,0.2);
     }
+    /* Battery Status */
+    #batteryStatus {
+      margin: 15px 0;
+      padding: 10px;
+      background: #fff;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      text-align: center;
+      font-size: 16px;
+      font-weight: bold;
+    }
   </style>
 </head>
 <body>
   <h1>GuardianEye Dashboard</h1>
 
   <div id="status">🔴 Disconnected</div>
+
+  <!-- ✅ Battery Status Section -->
+  <h2>🔋 Battery Status</h2>
+  <div id="batteryStatus">Waiting for battery info...</div>
 
   <h2>Live Map</h2>
   <div id="map"></div>
@@ -173,6 +188,14 @@
     socket.on("disconnect", () => {
       statusDiv.innerText = "🔴 Disconnected";
       statusDiv.style.color = "red";
+    });
+
+    // === BATTERY STATUS ===
+    const batteryDiv = document.getElementById("batteryStatus");
+    socket.on("battery-update", (data) => {
+      if (!data) return;
+      const { level, charging } = data;
+      batteryDiv.innerText = `🔋 ${level}% - ${charging ? "⚡ Charging" : "🔌 Not Charging"}`;
     });
 
     // === MAP ===
